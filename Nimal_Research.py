@@ -114,8 +114,6 @@ def editar_dados(venc, nf, dist, valor):
         editar_janela.destroy()  # Fecha a janela de edição
         # Mostrar mensagem de sucesso e fechar a janela
 
-
-
     # Botão de confirmação
     ctk.CTkButton(editar_janela, text="Salvar", command=confirmar, fg_color="gray", hover_color="darkred", width=300, height=40,
                                 font=("Impact", 18), corner_radius=10).pack(pady=10)
@@ -287,7 +285,7 @@ def mostrar_visao_geral():
             FROM nimalnotas
         """
         if valor:  # Se um valor for passado, filtra pela data
-            sql_query += " WHERE orcamento = %s"
+            sql_query += " WHERE orcamento LIKE %s "
             cursor.execute(sql_query, (valor,))
         else:  # Se não houver filtro, executa o SELECT sem condições
             cursor.execute(sql_query)
@@ -303,7 +301,7 @@ def mostrar_visao_geral():
 
     # Botão para aplicar o filtro
     def aplicar_filtro():
-        valor_filtrado = entry_filtro.get().strip()
+        valor_filtrado = entry_filtro.get().strip() + '%'
         if valor_filtrado:  # Verifica se há algum valor inserido para filtrar
             carregar_dados(valor_filtrado)
         else:
@@ -388,8 +386,8 @@ def importar_dados_excel():
             itens = row[9]
             total = row[10]
             vencimento = row[11]
-            nf = row[13]
             valor_nf = row[12]
+            nf = row[13]
             distribuidor = row[14]
 
             # Verificar se o orçamento já existe no banco de dados
@@ -401,20 +399,24 @@ def importar_dados_excel():
                 sql_update = """
                     UPDATE nimalnotas
                     SET local = %s, pedido = %s, situacao = %s, cliente = %s, razao = %s,
-                        representante = %s, itens = %s,total = %s, vencimento = %s,
-                        valor_nf = %s,nf = %s, distribuidor = %s, data = %s
+                        representante = %s, itens = %s, total = %s, vencimento = %s,
+                        valor_nf = %s, nf = %s, distribuidor = %s, data = %s
                     WHERE orcamento = %s
                 """
-                cursor.execute(sql_update, (local, pedido, situacao, cliente, razao, representante, itens,total, vencimento,valor_nf,nf, distribuidor, data, orcamento))
+                cursor.execute(sql_update, (
+                local, pedido, situacao, cliente, razao, representante, itens, total, vencimento, valor_nf, nf,
+                distribuidor, data, orcamento))
             else:
                 # Inserir novo registro
                 sql_insert = """
                     INSERT INTO nimalnotas (
                         local, orcamento, pedido, situacao, cliente, razao, representante,
-                        itens,total, vencimento, nf, valor_nf, distribuidor, data
-                    ) VALUES (%s, %s,%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        itens, total, vencimento, nf, valor_nf, distribuidor, data
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
-                cursor.execute(sql_insert, (local, orcamento, pedido, situacao, cliente, razao, representante, itens,total, vencimento, nf, valor_nf, distribuidor, data))
+                cursor.execute(sql_insert, (
+                local, orcamento, pedido, situacao, cliente, razao, representante, itens, total, vencimento, nf,
+                valor_nf, distribuidor, data))
 
         conexao.commit()
         cursor.close()
@@ -427,23 +429,29 @@ def importar_dados_excel():
 def mostrar_frame(frame):
     frame.tkraise()
 
-# Configuração da interface principal
+# Inicializar a janela principal
 janela = ctk.CTk()
 janela.title("NimalResearch")
 janela.state('zoomed')
-janela.config(bg="#DCDCDC")
+janela.config(bg="#337ca0")
 janela.resizable(False, False)
 janela.iconbitmap("nimal.ico")
 
-frame1 = ctk.CTkFrame(janela, fg_color="#C0C0C0", width=1240, height=60,corner_radius=10,background_corner_colors=["#DCDCDC", "#DCDCDC", "#DCDCDC", "#DCDCDC"])
-frame1.place(x=20, y=10)
+# Configurar a imagem de fundo
+bg = ctk.CTkImage(Image.open("bg10.jpg"), size=(1920, 1080))
+bg_label = ctk.CTkLabel(janela, image=bg)
+bg_label.place(relwidth=1, relheight=1)
+
+# Criar o frame transparente
+frame1 = ctk.CTkFrame(janela, fg_color="#a2d2ff",width=1200, height=90, corner_radius=20,background_corner_colors=["#29349e", "#336387", "#305589", "#29349e"])
+frame1.place(relx=0.5, rely=0.09, anchor='center')
 
 # Frame principal onde alternaremos as telas
-frame2 = ctk.CTkFrame(janela, fg_color="#DCDCDC", width=1240, height=820,corner_radius=20,)
-frame2.place(x=20, y=100)
+frame2 = ctk.CTkFrame(janela, fg_color="#a2d2ff", width=1200, height=480,corner_radius=20,background_corner_colors=["#cdb4db", "#cdb4db", "#cdb4db", "#cdb4db"])
+frame2.place(relx=0.5, rely=0.5, anchor='center')
 
 # Configuração do frame1 (cabeçalho)
-titulo = ctk.CTkLabel(frame1, text="NIMAL RESEARCH", font=("Impact", 40),text_color="#681919")
+titulo = ctk.CTkLabel(frame1, text="NIMAL RESEARCH", font=("Impact", 40),text_color='#001427')
 titulo.place(relx=0.5, rely=0.5, anchor='center')
 
 # Carregar imagens de fundo para os botões (substitua "instrucoes.png" e "pdf.png" com os caminhos reais das imagens)
@@ -458,35 +466,34 @@ imagem_passo3= ctk.CTkImage(Image.open("passo3.png"), size=(300, 300))
 imagem_passo4= ctk.CTkImage(Image.open("passo4.png"), size=(300, 300))
 
 
-
 logo_label = ctk.CTkLabel(frame1, text="", image=imagem_logo, font=("Impact", 30,"bold"))
-logo_label.place(x=10, y=-15)
+logo_label.place(x=20, y=0)
 
 # Frame do menu principal
-menu_frame = ctk.CTkFrame(frame2, fg_color="#C0C0C0",corner_radius=20)
+menu_frame = ctk.CTkFrame(frame2, fg_color="#a2d2ff",corner_radius=20,background_corner_colors=["#21269b", "#2b4d7d", "#2b4d7d", "#2c1a90"])
 menu_frame.place(relwidth=1, relheight=1)
 
 # Frame das instruções
-instrucoes_frame = ctk.CTkFrame(frame2, fg_color="#C0C0C0",corner_radius=20)
+instrucoes_frame = ctk.CTkFrame(frame2, fg_color="transparent",corner_radius=20,)
 instrucoes_frame.place(relwidth=1, relheight=1)
 
 # Configuração do menu principal
 botao_instrucoes = ctk.CTkButton(menu_frame, text="   Instruções", command=lambda: mostrar_frame(instrucoes_frame),
-                                 fg_color="#681919", hover_color="darkred", width=500, height=80,
+                                 fg_color="#001427", hover_color="darkred", width=500, height=80,
                                  image=imagem_instrucoes,compound="left", font=("Impact", 18), corner_radius=10,anchor="w")
 botao_instrucoes.pack(padx=10, pady=20)
 
 botao_selecionar_pdf = ctk.CTkButton(menu_frame, text="    Selecionar PDF", command=selecionar_pdf,
-                                     fg_color="#681919", hover_color="darkred", width=500, height=80,
+                                     fg_color="#001427", hover_color="darkred", width=500, height=80,
                                      image=imagem_pdf, font=("Impact", 18), corner_radius=10,anchor="w")
 botao_selecionar_pdf.pack(padx=50, pady=20)
 
 botao_visao_geral = ctk.CTkButton(menu_frame, text="     Visão Geral", command=mostrar_visao_geral,
-                                     fg_color="#681919", hover_color="darkred", width=500, height=80,
+                                     fg_color="#001427", hover_color="darkred", width=500, height=80,
                                      image=imagem_visao, font=("Impact", 18), corner_radius=10,anchor="w")
 botao_visao_geral.pack(padx=50, pady=20)
 
-botao_importar = ctk.CTkButton(menu_frame, text="   Importar Excel",command=importar_dados_excel,fg_color="#681919", hover_color="darkred", width=500, height=80,
+botao_importar = ctk.CTkButton(menu_frame, text="   Importar Excel",command=importar_dados_excel,fg_color="#001427", hover_color="darkred", width=500, height=80,
                                       font=("Impact", 18), corner_radius=10, anchor="w",image=imagem_excel)
 botao_importar.pack(padx=50, pady=20)
 
@@ -513,7 +520,7 @@ tutorial4 = ctk.CTkLabel(instrucoes_frame, text="escolher o número do orçament
 tutorial4.place(x=1070, y=400, anchor='center')
 
 botao_voltar = ctk.CTkButton(instrucoes_frame, text="Voltar", command=lambda: mostrar_frame(menu_frame),
-                             fg_color="#681919", hover_color="darkred", width=200, height=50, font=("Impact", 16))
+                             fg_color="#001427", hover_color="darkred", width=200, height=50, font=("Impact", 16))
 botao_voltar.place(relx=0.5, y=700, anchor='center')
 
 mostrar_frame(menu_frame)
