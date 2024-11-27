@@ -1,7 +1,5 @@
-import datetime
 import mysql.connector
 from openpyxl import load_workbook
-import customtkinter as ctk
 import os
 from tkinter import filedialog
 from PIL import Image
@@ -9,30 +7,25 @@ import pandas as pd
 from openpyxl.styles import PatternFill
 import tkinter as tk
 from tkinter import ttk
-from datetime import datetime
-
+import fitz
+import re
+import customtkinter as ctk
+from tkinter import messagebox, simpledialog
 
 # Conectando ao banco de dados
 conexao = mysql.connector.connect(
-    host="localhost",
-    user="root",
-    password="",
-    database="nimal"
+    host="192.168.0.101",  # ou o IP do servidor MySQL
+    user="seu_usuario",  # substitua pelo seu usuário MySQL
+    password="sua_senha",  # substitua pela senha do seu usuário
+    database="nimalnotas"
 )
 
 # Criando um cursor
 cursor = conexao.cursor()
 
-
 # Configuração do tema escuro
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
-
-# Função para extrair informações do PDF e salvar no Excel
-import fitz
-import re
-import customtkinter as ctk
-from tkinter import messagebox, simpledialog
 
 
 def extrair_informacoes_pdf(caminho_pdf):
@@ -114,12 +107,14 @@ def editar_dados(venc, nf, dist, valor):
         editar_janela.destroy()  # Fecha a janela de edição
         # Mostrar mensagem de sucesso e fechar a janela
 
+
+
     # Botão de confirmação
-    ctk.CTkButton(editar_janela, text="Salvar", command=confirmar, fg_color="gray", hover_color="darkred", width=300, height=40,
+    ctk.CTkButton(editar_janela, text="Salvar", command=confirmar, fg_color="gray", hover_color="#4361ee", width=300, height=40,
                                 font=("Impact", 18), corner_radius=10).pack(pady=10)
 
     # Botão para cancelar a edição
-    ctk.CTkButton(editar_janela, text="Cancelar", command=editar_janela.destroy, fg_color="gray", hover_color="darkred", width=300, height=40,
+    ctk.CTkButton(editar_janela, text="Cancelar", command=editar_janela.destroy, fg_color="gray", hover_color="#4361ee", width=300, height=40,
                                 font=("Impact", 18), corner_radius=10).pack(pady=5)
 
 
@@ -221,41 +216,46 @@ def selecionar_pdf():
 
 
 def restaurar_menu():
+    frame2.configure(width=600, height=480)
+    frame2.pack_propagate(False)
     # Limpa o conteúdo anterior no menu
     for widget in menu_frame.winfo_children():
         widget.destroy()
 
     # Recria os botões do menu
     botao_instrucoes = ctk.CTkButton(menu_frame, text="   Instruções", command=lambda: mostrar_frame(instrucoes_frame),
-                                     fg_color="#681919", hover_color="darkred", width=500, height=80,
+                                     fg_color="#001427", hover_color="#4361ee", width=500, height=80,
                                      image=imagem_instrucoes, compound="left", font=("Impact", 18), corner_radius=10,
                                      anchor="w")
     botao_instrucoes.pack(padx=10, pady=20)
 
     botao_selecionar_pdf = ctk.CTkButton(menu_frame, text="    Selecionar PDF", command=selecionar_pdf,
-                                         fg_color="#681919", hover_color="darkred", width=500, height=80,
+                                         fg_color="#001427", hover_color="#4361ee", width=500, height=80,
                                          image=imagem_pdf, font=("Impact", 18), corner_radius=10, anchor="w")
     botao_selecionar_pdf.pack(padx=50, pady=20)
 
     botao_visao_geral = ctk.CTkButton(menu_frame, text="     Visão Geral", command=mostrar_visao_geral,
-                                      fg_color="#681919", hover_color="darkred", width=500, height=80,
+                                      fg_color="#001427", hover_color="#4361ee", width=500, height=80,
                                       image=imagem_visao, font=("Impact", 18), corner_radius=10, anchor="w")
     botao_visao_geral.pack(padx=50, pady=20)
 
-    botao_importar = ctk.CTkButton(menu_frame, text="   Importar Excel", command=importar_dados_excel, fg_color="#681919",
-                                   hover_color="darkred", width=500, height=80,
+    botao_importar = ctk.CTkButton(menu_frame, text="   Importar Excel", command=importar_dados_excel, fg_color="#001427",
+                                   hover_color="#4361ee", width=500, height=80,
                                    font=("Impact", 18), corner_radius=10, anchor="w",image=imagem_excel)
     botao_importar.pack(padx=50, pady=20)
 
 
 # Atualizando a função para exibir a visão geral
 def mostrar_visao_geral():
+
+    frame2.configure(width=1200, height=650)
+    frame2.pack_propagate(False)
     # Limpa o conteúdo anterior no frame de menu
     for widget in menu_frame.winfo_children():
         widget.destroy()
 
     # Frame para a visão geral
-    visao_frame = ctk.CTkFrame(frame2, fg_color="#C0C0C0")
+    visao_frame = ctk.CTkFrame(frame2, fg_color="#8187dc")
     visao_frame.place(relwidth=1, relheight=1)
 
     # Campo de entrada para o valor de filtro
@@ -272,17 +272,22 @@ def mostrar_visao_geral():
 
         # Conecta ao banco de dados
         conexao = mysql.connector.connect(
-            host="localhost",
-            user="root",
-            password="",
-            database="nimal"
+            host="192.168.0.101",  # ou o IP do servidor MySQL
+            user="seu_usuario",  # substitua pelo seu usuário MySQL
+            password="sua_senha",  # substitua pela senha do seu usuário
+            database="nimalnotas"
         )
         cursor = conexao.cursor()
+
+        if conexao.is_connected():
+            print("Conexão bem-sucedida ao MySQL")
+
+
 
         # SQL básico com filtro opcional
         sql_query = """
             SELECT local, orcamento,pedido,data, situacao, cliente, razao, representante, itens,total, vencimento, nf, valor_nf, distribuidor 
-            FROM nimalnotas
+            FROM nimal
         """
         if valor:  # Se um valor for passado, filtra pela data
             sql_query += " WHERE orcamento LIKE %s "
@@ -307,13 +312,13 @@ def mostrar_visao_geral():
         else:
             carregar_dados()  # Se não houver valor, carrega todos os dados
 
-    botao_filtrar = ctk.CTkButton(visao_frame, text="Filtrar", command=aplicar_filtro, fg_color="#681919",
-                                  hover_color="darkred", width=200, height=40, font=("Impact", 14))
+    botao_filtrar = ctk.CTkButton(visao_frame, text="Filtrar", command=aplicar_filtro, fg_color="#001427",
+                                  hover_color="#4361ee", width=200, height=40, font=("Impact", 14))
     botao_filtrar.pack(pady=10)
 
     # Criando a tabela com Treeview
     colunas = ("local", "orcamento","pedido", "data", "situacao", "cliente", "razao", "representante",
-               "itens","total", "vencimento","valor_nf", "nf",  "distribuidor")
+               "itens","total", "vencimento","nf","valor_nf","distribuidor")
     tree = ttk.Treeview(visao_frame, columns=colunas, show="headings")
     tree.pack(fill=tk.BOTH, expand=True)
 
@@ -340,12 +345,12 @@ def mostrar_visao_geral():
 
     # Configuração dos botões
     botao_exportar = ctk.CTkButton(visao_frame, text="Exportar para Excel", command=exportar_para_excel,
-                                   fg_color="#681919", hover_color="darkred", width=200, height=40, font=("Impact", 14))
+                                   fg_color="#001427", hover_color="#4361ee", width=200, height=40, font=("Impact", 14))
     botao_exportar.pack(pady=10)
 
     botao_voltar = ctk.CTkButton(visao_frame, text="Voltar",
                                  command=lambda: (restaurar_menu(), mostrar_frame(menu_frame)),
-                                 fg_color="#681919", hover_color="darkred", width=200, height=50, font=("Impact", 16))
+                                 fg_color="#001427", hover_color="#4361ee", width=200, height=50, font=("Impact", 16))
     botao_voltar.pack(pady=10)
 
 
@@ -361,10 +366,10 @@ def importar_dados_excel():
 
         # Conectar ao banco de dados
         conexao = mysql.connector.connect(
-            host='localhost',
-            user='root',
-            password='',
-            database='nimal'
+            host="192.168.0.101",  # ou o IP do servidor MySQL
+            user="seu_usuario",  # substitua pelo seu usuário MySQL
+            password="sua_senha",  # substitua pela senha do seu usuário
+            database="nimalnotas"
         )
         cursor = conexao.cursor()
 
@@ -391,13 +396,13 @@ def importar_dados_excel():
             distribuidor = row[14]
 
             # Verificar se o orçamento já existe no banco de dados
-            cursor.execute("SELECT COUNT(*) FROM nimalnotas WHERE orcamento = %s", (orcamento,))
+            cursor.execute("SELECT COUNT(*) FROM nimal WHERE orcamento = %s", (orcamento,))
             resultado = cursor.fetchone()
 
             if resultado and resultado[0] > 0:
                 # Atualizar se o orçamento já existe
                 sql_update = """
-                    UPDATE nimalnotas
+                    UPDATE nimal
                     SET local = %s, pedido = %s, situacao = %s, cliente = %s, razao = %s,
                         representante = %s, itens = %s, total = %s, vencimento = %s,
                         valor_nf = %s, nf = %s, distribuidor = %s, data = %s
@@ -409,7 +414,7 @@ def importar_dados_excel():
             else:
                 # Inserir novo registro
                 sql_insert = """
-                    INSERT INTO nimalnotas (
+                    INSERT INTO nimal (
                         local, orcamento, pedido, situacao, cliente, razao, representante,
                         itens, total, vencimento, nf, valor_nf, distribuidor, data
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -427,14 +432,33 @@ def importar_dados_excel():
         messagebox.showerror("Erro", f"Erro ao importar dados do Excel: {e}")
 
 def mostrar_frame(frame):
+    # Checa se o frame passado é o 'instrucoes_frame'
+    if frame == instrucoes_frame:
+        frame2.configure(width=1200, height=650)
+        frame2.pack_propagate(False)
+    else:
+        # Caso não seja o instrucoes_frame, ajuste o tamanho ou comportamento padrão
+        frame2.configure(width=600, height=480)  # Exemplo de tamanho padrão
+        frame2.pack_propagate(True)  # Reativa o ajuste automático de tamanho
+
     frame.tkraise()
 
+
 # Inicializar a janela principal
+
+def get_screen_size():
+    screen_width = janela.winfo_screenwidth()
+    screen_height = janela.winfo_screenheight()
+    return screen_width, screen_height
+
+
 janela = ctk.CTk()
+screen_width, screen_height = get_screen_size()
+janela.geometry(f"{screen_width}x{screen_height}")
+janela.resizable(True, True)
 janela.title("NimalResearch")
 janela.state('zoomed')
 janela.config(bg="#337ca0")
-janela.resizable(False, False)
 janela.iconbitmap("nimal.ico")
 
 # Configurar a imagem de fundo
@@ -443,21 +467,21 @@ bg_label = ctk.CTkLabel(janela, image=bg)
 bg_label.place(relwidth=1, relheight=1)
 
 # Criar o frame transparente
-frame1 = ctk.CTkFrame(janela, fg_color="#a2d2ff",width=1200, height=90, corner_radius=20,background_corner_colors=["#29349e", "#336387", "#305589", "#29349e"])
+frame1 = ctk.CTkFrame(janela, fg_color="#8187dc",border_width=3, border_color="#564592",width=600, height=90, corner_radius=20,background_corner_colors=["#29349e", "#336387", "#305589", "#29349e"])
 frame1.place(relx=0.5, rely=0.09, anchor='center')
 
 # Frame principal onde alternaremos as telas
-frame2 = ctk.CTkFrame(janela, fg_color="#a2d2ff", width=1200, height=480,corner_radius=20,background_corner_colors=["#cdb4db", "#cdb4db", "#cdb4db", "#cdb4db"])
+frame2 = ctk.CTkFrame(janela, fg_color="#8187dc",border_width=3, border_color="#564592", width=600, height=480,corner_radius=20,background_corner_colors=["#cdb4db", "#cdb4db", "#cdb4db", "#cdb4db"])
 frame2.place(relx=0.5, rely=0.5, anchor='center')
 
 # Configuração do frame1 (cabeçalho)
-titulo = ctk.CTkLabel(frame1, text="NIMAL RESEARCH", font=("Impact", 40),text_color='#001427')
+titulo = ctk.CTkLabel(frame1, text="NIMAL RESEARCH", font=("Impact", 40))
 titulo.place(relx=0.5, rely=0.5, anchor='center')
 
 # Carregar imagens de fundo para os botões (substitua "instrucoes.png" e "pdf.png" com os caminhos reais das imagens)
 imagem_instrucoes = ctk.CTkImage(Image.open("instrucoes.png"), size=(60, 60))
 imagem_pdf = ctk.CTkImage(Image.open("pdf.png"), size=(60, 60))
-imagem_logo = ctk.CTkImage(Image.open("nimal.ico"), size=(90, 90))
+imagem_logo = ctk.CTkImage(Image.open("nimal.ico"), size=(80, 80))
 imagem_visao = ctk.CTkImage(Image.open("visao.png"), size=(60, 60))
 imagem_excel = ctk.CTkImage(Image.open("excel.png"), size=(60, 60))
 imagem_passo1= ctk.CTkImage(Image.open("passo1.png"), size=(300, 300))
@@ -467,10 +491,10 @@ imagem_passo4= ctk.CTkImage(Image.open("passo4.png"), size=(300, 300))
 
 
 logo_label = ctk.CTkLabel(frame1, text="", image=imagem_logo, font=("Impact", 30,"bold"))
-logo_label.place(x=20, y=0)
+logo_label.place(x=20, y=5)
 
 # Frame do menu principal
-menu_frame = ctk.CTkFrame(frame2, fg_color="#a2d2ff",corner_radius=20,background_corner_colors=["#21269b", "#2b4d7d", "#2b4d7d", "#2c1a90"])
+menu_frame = ctk.CTkFrame(frame2, fg_color="#8187dc",border_width=3, border_color="#564592",corner_radius=20,background_corner_colors=["#21269b", "#2b4d7d", "#22296f", "#2c1a90"])
 menu_frame.place(relwidth=1, relheight=1)
 
 # Frame das instruções
@@ -479,49 +503,49 @@ instrucoes_frame.place(relwidth=1, relheight=1)
 
 # Configuração do menu principal
 botao_instrucoes = ctk.CTkButton(menu_frame, text="   Instruções", command=lambda: mostrar_frame(instrucoes_frame),
-                                 fg_color="#001427", hover_color="darkred", width=500, height=80,
+                                 fg_color="#001427", hover_color="#4361ee", width=500, height=80,
                                  image=imagem_instrucoes,compound="left", font=("Impact", 18), corner_radius=10,anchor="w")
 botao_instrucoes.pack(padx=10, pady=20)
 
 botao_selecionar_pdf = ctk.CTkButton(menu_frame, text="    Selecionar PDF", command=selecionar_pdf,
-                                     fg_color="#001427", hover_color="darkred", width=500, height=80,
+                                     fg_color="#001427", hover_color="#4361ee", width=500, height=80,
                                      image=imagem_pdf, font=("Impact", 18), corner_radius=10,anchor="w")
 botao_selecionar_pdf.pack(padx=50, pady=20)
 
 botao_visao_geral = ctk.CTkButton(menu_frame, text="     Visão Geral", command=mostrar_visao_geral,
-                                     fg_color="#001427", hover_color="darkred", width=500, height=80,
+                                     fg_color="#001427", hover_color="#4361ee", width=500, height=80,
                                      image=imagem_visao, font=("Impact", 18), corner_radius=10,anchor="w")
 botao_visao_geral.pack(padx=50, pady=20)
 
-botao_importar = ctk.CTkButton(menu_frame, text="   Importar Excel",command=importar_dados_excel,fg_color="#001427", hover_color="darkred", width=500, height=80,
+botao_importar = ctk.CTkButton(menu_frame, text="   Importar Excel",command=importar_dados_excel,fg_color="#001427", hover_color="#4361ee", width=500, height=80,
                                       font=("Impact", 18), corner_radius=10, anchor="w",image=imagem_excel)
 botao_importar.pack(padx=50, pady=20)
 
 
 # Configuração da tela de instruções
-titulo_instrucoes = ctk.CTkLabel(instrucoes_frame, text="Instruções",text_color="#681919",font=("Impact", 30))
+titulo_instrucoes = ctk.CTkLabel(instrucoes_frame, text="Instruções",font=("Impact", 30))
 titulo_instrucoes.place(relx=0.5, y=15, anchor='center')
 
 texto_instrucoes = ctk.CTkLabel(instrucoes_frame, text="Bem-vindo ao Nimal Research! Aqui você pode adicionar automaticamente as informações de notas fiscais à sua planilha no Excel. Para isso, basta seguir estes passos, mas antes, precisamos salvar o arquivo baixado do eloca novamente, para isso basta abrir o arquivo da planilha excel e ir em -> Arquivo -> Salvar Como e escolher um nome para o arquivo.\n 1. Clique em 'Selecionar PDF' e escolha o arquivo da nota fiscal (Lembre-se de que ele precisa estar no formato PDF). Quando o programa ler o arquivo, as informações extraídas aparecerão para o usuário.\n 2. Selecione o arquivo da planilha Excel para adicionar as informações extraídas. \n 3. Na aba de seleção do valor do orçamento, insira o número correspondente à ordem de serviço escolhida. Esse número é indicado na coluna 'Orçamento' e segue o formato padrão: '00-0'. ",
-                                font=("Arial", 14,"bold"),text_color="#681919", wraplength=850, justify="left")
+                                font=("Arial", 14,"bold"), wraplength=850, justify="left")
 texto_instrucoes.place(relx=0.5, y=120, anchor='center')
 
 
 tutorial1 = ctk.CTkLabel(instrucoes_frame, text="selecionar arquivo da nota fiscal",image=imagem_passo1,font=("Impact", 15))
-tutorial1.place(x=170, y=400, anchor='center')
+tutorial1.place(x=150, y=400, anchor='center')
 
 tutorial2 = ctk.CTkLabel(instrucoes_frame, text="confirmar os dados",image=imagem_passo2, font=("Impact", 15))
-tutorial2.place(x=470, y=400, anchor='center')
+tutorial2.place(x=450, y=400, anchor='center')
 
 tutorial3 = ctk.CTkLabel(instrucoes_frame, text="selecionar arquivo excel",image=imagem_passo3, font=("Impact", 15))
-tutorial3.place(x=770, y=400, anchor='center')
+tutorial3.place(x=750, y=400, anchor='center')
 
 tutorial4 = ctk.CTkLabel(instrucoes_frame, text="escolher o número do orçamento",image=imagem_passo4, font=("Impact", 15))
-tutorial4.place(x=1070, y=400, anchor='center')
+tutorial4.place(x=1050, y=400, anchor='center')
 
 botao_voltar = ctk.CTkButton(instrucoes_frame, text="Voltar", command=lambda: mostrar_frame(menu_frame),
-                             fg_color="#001427", hover_color="darkred", width=200, height=50, font=("Impact", 16))
-botao_voltar.place(relx=0.5, y=700, anchor='center')
+                             fg_color="#001427", hover_color="#4361ee", width=200, height=50, font=("Impact", 16))
+botao_voltar.place(relx=0.5, rely=0.9, anchor='center')
 
 mostrar_frame(menu_frame)
 
