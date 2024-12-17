@@ -1,252 +1,31 @@
 import mysql.connector
 from openpyxl import load_workbook
 import os
-from tkinter import filedialog
 from PIL import Image
 import pandas as pd
-from openpyxl.styles import PatternFill
 import tkinter as tk
 from tkinter import ttk
 import fitz
 import re
 import customtkinter as ctk
-from tkinter import messagebox, simpledialog
+from tkinter import messagebox
+from tkinter import filedialog
 
-# Conectando ao banco de dados
 conexao = mysql.connector.connect(
-    host="192.168.0.101",  # ou o IP do servidor MySQL
-    user="seu_usuario",  # substitua pelo seu usuário MySQL
-    password="sua_senha",  # substitua pela senha do seu usuário
+    host="192.168.0.101",
+    user="seu_usuario",
+    password="sua_senha",
     database="nimalnotas"
 )
 
-# Criando um cursor
 cursor = conexao.cursor()
 
-# Configuração do tema escuro
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
 
-def extrair_informacoes_pdf(caminho_pdf):
-    try:
-        with fitz.open(caminho_pdf) as pdf:
-            conteudo = ""
-            for pagina in pdf:
-                conteudo += pagina.get_text()
-
-            linhas = conteudo.splitlines()
-
-            # Listas de padrões para buscar diferentes variações
-            padroes_venc = [r"Venc\.\s*(.*)", r"VENCIMENTO\s*(.*)"]
-            padroes_nf = [r"Nº\.\s*(.*)", r"Nº\s*(.*)", r"Número Fiscal\s*(.*)"]
-            padroes_dist = [r"IDENTIFICAÇÃO DO EMITENTE\s*(.*)", r"Distribuidor\s*(.*)", r"RECEBEMOS DE\s*(.*)"]
-            padroes_valor = [r"V\. TOTAL DA NOTA\s*(.*)", r"VALOR TOTAL DA NOTA\s*(.*)", r"V\. Total\s*(.*)"]
-
-            # Função auxiliar para tentar vários padrões até encontrar uma correspondência
-            def buscar_texto(padroes):
-                for padrao in padroes:
-                    match = re.search(padrao, conteudo)
-                    if match:
-                        return match.group(1).strip()
-                return "Não encontrado"
-
-            # Usar a função auxiliar para buscar cada campo
-            venc_extraido = buscar_texto(padroes_venc)
-            nf_extraido = buscar_texto(padroes_nf)
-            dist_extraido = buscar_texto(padroes_dist)
-            valor_extraido = buscar_texto(padroes_valor)
-
-            # Chamar função para editar e confirmar dados
-            editar_dados(venc_extraido, nf_extraido, dist_extraido, valor_extraido)
-
-    except Exception as e:
-        messagebox.showerror("Erro", f"Erro ao processar o PDF: {e}")
-
-
-def editar_dados(venc, nf, dist, valor):
-    # Criar uma nova janela para edição
-    editar_janela = ctk.CTkToplevel()
-    editar_janela.title("Editar Informações Extraídas")
-    editar_janela.geometry("700x500")
-
-    # Forçar a nova janela a ficar sempre em cima
-    editar_janela.attributes('-topmost', True)
-
-    # Labels e campos de entrada
-    ctk.CTkLabel(editar_janela, text="Vencimento:").pack(pady=5)
-    venc_entry = ctk.CTkEntry(editar_janela)
-    venc_entry.insert(0, venc)
-    venc_entry.pack(pady=5)
-
-    ctk.CTkLabel(editar_janela, text="NF:").pack(pady=5)
-    nf_entry = ctk.CTkEntry(editar_janela)
-    nf_entry.insert(0, nf)
-    nf_entry.pack(pady=5)
-
-    ctk.CTkLabel(editar_janela, text="Distribuidor:").pack(pady=5)
-    dist_entry = ctk.CTkEntry(editar_janela)
-    dist_entry.insert(0, dist)
-    dist_entry.pack(pady=5)
-
-    ctk.CTkLabel(editar_janela, text="Valor:").pack(pady=5)
-    valor_entry = ctk.CTkEntry(editar_janela)
-    valor_entry.insert(0, valor)
-    valor_entry.pack(pady=5)
-
-    # Função para confirmar e salvar os dados
-    def confirmar():
-        venc_editado = venc_entry.get()
-        nf_editado = nf_entry.get()
-        dist_editado = dist_entry.get()
-        valor_editado = valor_entry.get()
-
-        editar_janela.attributes('-topmost', False)
-        # Salvar informações no Excel e no banco de dados
-        salvar_informacoes_excel_base(venc_editado, nf_editado, dist_editado, valor_editado)
-        editar_janela.destroy()  # Fecha a janela de edição
-        # Mostrar mensagem de sucesso e fechar a janela
-
-
-
-    # Botão de confirmação
-    ctk.CTkButton(editar_janela, text="Salvar", command=confirmar, fg_color="gray", hover_color="#4361ee", width=300, height=40,
-                                font=("Impact", 18), corner_radius=10).pack(pady=10)
-
-    # Botão para cancelar a edição
-    ctk.CTkButton(editar_janela, text="Cancelar", command=editar_janela.destroy, fg_color="gray", hover_color="#4361ee", width=300, height=40,
-                                font=("Impact", 18), corner_radius=10).pack(pady=5)
-
-
-def salvar_informacoes_excel_base(venc, nf, dist, valor):
-    caminho_excel = filedialog.askopenfilename(title="Selecione o arquivo Excel de base",
-                                               filetypes=[("Excel files", "*.xlsx")])
-    if not caminho_excel or not os.access(caminho_excel, os.W_OK):
-        messagebox.showerror("Erro", "Arquivo inválido ou sem permissão de escrita.")
-        return
-
-    try:
-        wb = load_workbook(caminho_excel)
-        sheet = wb.active
-
-        # Limpar preenchimento das células a partir da segunda linha
-        for row in sheet.iter_rows(min_row=2):
-            for cell in row:
-                cell.fill = PatternFill(fill_type=None)  # Limpa o preenchimento
-
-        # Criar colunas nas posições 12, 13, 14 e 15 se não existirem
-        colunas_posicoes = {12: "vencimento", 13: "nf", 14: "valor nf", 15: "distribuidor"}
-        preenchimento = PatternFill(start_color="FFFF00", end_color="FFFF00", fill_type="solid")
-
-        for posicao, nome_coluna in colunas_posicoes.items():
-            if sheet.cell(row=1, column=posicao).value != nome_coluna:
-                sheet.cell(row=1, column=posicao, value=nome_coluna)
-                sheet.cell(row=1, column=posicao).fill = preenchimento
-
-        # Perguntar pelo valor do orçamento
-        valor_orcamento = simpledialog.askstring("Valor do Orçamento",
-                                                 "Digite o valor do orçamento que você deseja buscar:")
-        if not valor_orcamento:
-            return
-
-        coluna_orcamento = next(
-            (cell.column for cell in sheet[1] if str(cell.value).lower() in ["orcamento", "orçamento"]), None)
-        if coluna_orcamento is None:
-            messagebox.showerror("Erro", "Coluna 'Orçamento' não encontrada.")
-            return
-
-        linha_encontrada = next(
-            (row[0].row for row in sheet.iter_rows(min_row=2) if row[coluna_orcamento - 1].value == valor_orcamento),
-            None)
-        if linha_encontrada is None:
-            messagebox.showerror("Erro", "Valor de orçamento não encontrado.")
-            return
-
-        # Adiciona os dados nas colunas corretas na planilha Excel
-        sheet.cell(row=linha_encontrada, column=12, value=venc)
-        sheet.cell(row=linha_encontrada, column=13, value=nf)
-        sheet.cell(row=linha_encontrada, column=14, value=valor)
-        sheet.cell(row=linha_encontrada, column=15, value=dist)
-
-        # Perguntar ao usuário se deseja adicionar uma nova nota fiscal ao pedido
-        adicionar_nf = messagebox.askyesno("Adicionar Nota Fiscal",
-                                           "Deseja adicionar uma nova nota fiscal para este pedido?")
-
-        if adicionar_nf:
-            # Incrementar o valor do orçamento para criar um novo registro
-            base_orcamento = valor_orcamento.rsplit('-', 1)[0]
-            numero_incremento = int(valor_orcamento.rsplit('-', 1)[1]) + 1
-
-            # Verificar se o próximo orçamento já existe
-            novo_orcamento = f"{base_orcamento}-{numero_incremento}"
-            while any(row[coluna_orcamento - 1].value == novo_orcamento for row in sheet.iter_rows(min_row=2)):
-                numero_incremento += 1
-                novo_orcamento = f"{base_orcamento}-{numero_incremento}"
-
-            # Mover linhas abaixo da linha encontrada para baixo
-            sheet.insert_rows(linha_encontrada + 1)
-
-            # Duplicar a linha com o novo orçamento logo abaixo da linha encontrada
-            for col in range(1, sheet.max_column + 1):
-                sheet.cell(row=linha_encontrada + 1, column=col,
-                           value=sheet.cell(row=linha_encontrada, column=col).value)
-            sheet.cell(row=linha_encontrada + 1, column=coluna_orcamento, value=novo_orcamento)
-
-            # Adicionar os novos dados para a linha duplicada
-            sheet.cell(row=linha_encontrada + 1, column=12, value=venc)
-            sheet.cell(row=linha_encontrada + 1, column=13, value=nf)
-            sheet.cell(row=linha_encontrada + 1, column=14, value=valor)
-            sheet.cell(row=linha_encontrada + 1, column=15, value=dist)
-
-            messagebox.showinfo("Sucesso", "Nova nota fiscal adicionada ao pedido.")
-
-        # Salvar as alterações no Excel
-        wb.save(caminho_excel)
-        messagebox.showinfo("Sucesso", "Informações salvas no Excel.")
-
-    except Exception as e:
-        messagebox.showerror("Erro", f"Erro ao salvar no Excel: {e}")
-
-
-# Função para abrir o seletor de PDF
-def selecionar_pdf():
-    caminho_pdf = filedialog.askopenfilename(filetypes=[("PDF files", "*.pdf")])
-    if caminho_pdf:
-        extrair_informacoes_pdf(caminho_pdf)
-
-
-def restaurar_menu():
-    frame2.configure(width=600, height=480)
-    frame2.pack_propagate(False)
-    # Limpa o conteúdo anterior no menu
-    for widget in menu_frame.winfo_children():
-        widget.destroy()
-
-    # Recria os botões do menu
-    botao_instrucoes = ctk.CTkButton(menu_frame, text="   Instruções", command=lambda: mostrar_frame(instrucoes_frame),
-                                     fg_color="#001427", hover_color="#4361ee", width=500, height=80,
-                                     image=imagem_instrucoes, compound="left", font=("Impact", 18), corner_radius=10,
-                                     anchor="w")
-    botao_instrucoes.pack(padx=10, pady=20)
-
-    botao_selecionar_pdf = ctk.CTkButton(menu_frame, text="    Selecionar PDF", command=selecionar_pdf,
-                                         fg_color="#001427", hover_color="#4361ee", width=500, height=80,
-                                         image=imagem_pdf, font=("Impact", 18), corner_radius=10, anchor="w")
-    botao_selecionar_pdf.pack(padx=50, pady=20)
-
-    botao_visao_geral = ctk.CTkButton(menu_frame, text="     Visão Geral", command=mostrar_visao_geral,
-                                      fg_color="#001427", hover_color="#4361ee", width=500, height=80,
-                                      image=imagem_visao, font=("Impact", 18), corner_radius=10, anchor="w")
-    botao_visao_geral.pack(padx=50, pady=20)
-
-    botao_importar = ctk.CTkButton(menu_frame, text="   Importar Excel", command=importar_dados_excel, fg_color="#001427",
-                                   hover_color="#4361ee", width=500, height=80,
-                                   font=("Impact", 18), corner_radius=10, anchor="w",image=imagem_excel)
-    botao_importar.pack(padx=50, pady=20)
-
-
-# Atualizando a função para exibir a visão geral
 def mostrar_visao_geral():
+    global tree, frame2, menu_frame
 
     frame2.configure(width=1200, height=650)
     frame2.pack_propagate(False)
@@ -255,8 +34,9 @@ def mostrar_visao_geral():
         widget.destroy()
 
     # Frame para a visão geral
-    visao_frame = ctk.CTkFrame(frame2, fg_color="#8187dc")
+    visao_frame = ctk.CTkFrame(frame2, fg_color="#33415c")
     visao_frame.place(relwidth=1, relheight=1)
+
 
     # Campo de entrada para o valor de filtro
     label_filtro = ctk.CTkLabel(visao_frame, text="Filtrar por valor:", font=("Arial", 14))
@@ -282,7 +62,18 @@ def mostrar_visao_geral():
         if conexao.is_connected():
             print("Conexão bem-sucedida ao MySQL")
 
+        def atualizar_treeview():
+            # Limpar a Treeview
+            for item in tree.get_children():
+                tree.delete(item)
 
+            # Recuperar os dados do banco de dados
+            cursor.execute("SELECT * FROM nimal ORDER BY orcamento ASC")
+            resultados = cursor.fetchall()
+
+            # Adicionar os dados na Treeview
+            for linha in resultados:
+                tree.insert("", "end", values=linha)
 
         # SQL básico com filtro opcional
         sql_query = """
@@ -316,11 +107,31 @@ def mostrar_visao_geral():
                                   hover_color="#4361ee", width=200, height=40, font=("Impact", 14))
     botao_filtrar.pack(pady=10)
 
+    style = ttk.Style()
+    style.theme_use("clam")
+
+    style.configure("Treeview.Heading",
+                    background="#33415c",  # Cor de fundo do cabeçalho
+                    foreground="white",  # Cor da fonte do cabeçalho
+                    font=("Arial", 10, "bold"))  # Fonte do cabeçalho
+
+    style.map("Treeview.Heading",
+              background=[("active", "#4361ee")])  # Cor de fundo ao passar o mouse
+
+
+
+    style.configure("Treeview", background="#1C1C1C",  # Cor de fundo
+                    fieldbackground="#1C1C1C",  # Cor de fundo dos campos
+                    foreground="white",  # Cor do texto
+                    rowheight=25)  # Altura das linhas
+
     # Criando a tabela com Treeview
-    colunas = ("local", "orcamento","pedido", "data", "situacao", "cliente", "razao", "representante",
-               "itens","total", "vencimento","nf","valor_nf","distribuidor")
+    colunas = ("local", "orcamento", "pedido", "data", "fase", "cliente", "razao", "representante",
+               "itens", "total", "vencimento", "nf", "valor_nf", "distribuidor")
     tree = ttk.Treeview(visao_frame, columns=colunas, show="headings")
     tree.pack(fill=tk.BOTH, expand=True)
+
+
 
     for coluna in colunas:
         tree.heading(coluna, text=coluna)
@@ -339,19 +150,341 @@ def mostrar_visao_geral():
 
             # Usando ExcelWriter para definir a linha inicial de escrita
             with pd.ExcelWriter(caminho_arquivo, engine='openpyxl') as writer:
-                df.to_excel(writer, index=False, startcol=1)  # Dados a partir da segunda linha (índice 1)
+                df.to_excel(writer, index=False, startcol=1)
 
             messagebox.showinfo("Exportação", f"Dados exportados com sucesso para {caminho_arquivo}")
 
     # Configuração dos botões
-    botao_exportar = ctk.CTkButton(visao_frame, text="Exportar para Excel", command=exportar_para_excel,
-                                   fg_color="#001427", hover_color="#4361ee", width=200, height=40, font=("Impact", 14))
-    botao_exportar.pack(pady=10)
+    botao_exportar = ctk.CTkButton(visao_frame, text="Gerar Relatório", command=exportar_para_excel,
+                                   fg_color="#001427", hover_color="#4361ee", width=200, height=50, font=("Impact", 16))
+    botao_exportar.pack(pady=5, padx=5, side=tk.LEFT)
+
+    botao_selecionar_pdf = ctk.CTkButton(visao_frame, text="Adicionar Nota Fiscal", command=selecionar_pdf,
+                                         fg_color="#001427", hover_color="#4361ee", width=200, height=50,
+                                         image=imagem_pdf, font=("Impact", 16), corner_radius=10, anchor="w")
+    botao_selecionar_pdf.pack(pady=5, padx=5, side=tk.LEFT)
+
+    def duplicar_orcamento():
+        try:
+            global orcamento_selecionado  # Declarar como global para que seja acessível dentro da função
+
+            # Obtendo o orcamento selecionado da Treeview
+            orcamento_selecionado = tree.item(tree.selection())["values"][1]
+
+            # Incrementar o valor do orçamento para criar um novo registro
+            base_orcamento = orcamento_selecionado.rsplit('-', 1)[0]
+            numero_incremento = int(orcamento_selecionado.rsplit('-', 1)[1]) + 1
+            novo_orcamento = f"{base_orcamento}-{numero_incremento}"
+
+            cursor.execute(
+                "SELECT local, orcamento,pedido,data, situacao, cliente, razao, representante, itens,total, vencimento, nf, valor_nf, distribuidor FROM nimal WHERE orcamento = %s",
+                (orcamento_selecionado,))
+            linha_selecionada = cursor.fetchone()
+
+            print(linha_selecionada)
+
+            # Copiar a linha selecionada e modificar o orçamento
+            dados_copia = [
+                linha_selecionada[0],  # local
+                novo_orcamento,  # orcamento
+                linha_selecionada[2],  # pedido
+                linha_selecionada[3],  # data
+                linha_selecionada[4],  # situacao
+                linha_selecionada[5],  # cliente
+                linha_selecionada[6],  # razao
+                linha_selecionada[7],  # representante
+                linha_selecionada[8],  # itens
+                linha_selecionada[9],  # total
+                linha_selecionada[10],  # vencimento
+                linha_selecionada[11],  # nf
+                linha_selecionada[12],  # valor_nf
+                linha_selecionada[13]  # distribuidor
+            ]
+
+            print(dados_copia)
+
+            # Inserir a nova linha na tabela no banco de dados
+            cursor.execute(
+                "INSERT INTO nimal (local,orcamento, pedido, data, situacao, cliente, razao, representante, itens, total, vencimento, nf, valor_nf, distribuidor) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                dados_copia
+            )
+            conexao.commit()
+
+            mostrar_visao_geral()
+        except Exception as e:
+            messagebox.showerror("Erro", "Por favor,selecione um pedido para duplicar.")
+
+    # Botão para duplicar orçamento
+    duplicar_button = ctk.CTkButton(visao_frame, text="Duplicar Pedido", command=duplicar_orcamento,
+                                    fg_color="#001427", hover_color="#4361ee", width=200, height=50,
+                                    font=("Impact", 16))
+    duplicar_button.pack(pady=5, padx=5, side=tk.LEFT)
 
     botao_voltar = ctk.CTkButton(visao_frame, text="Voltar",
                                  command=lambda: (restaurar_menu(), mostrar_frame(menu_frame)),
                                  fg_color="#001427", hover_color="#4361ee", width=200, height=50, font=("Impact", 16))
-    botao_voltar.pack(pady=10)
+    botao_voltar.pack(pady=5, padx=5, side=tk.RIGHT)
+
+    def editar_dados():
+        # Verifica se há uma linha selecionada
+        item_selecionado = tree.selection()
+        if not item_selecionado:
+            messagebox.showwarning("Aviso", "Por favor, selecione uma linha para editar.")
+            return
+
+        # Recupera os valores da linha selecionada
+        valores_atuais = tree.item(item_selecionado, "values")
+
+        # Cria uma nova janela para edição
+        janela_edicao = ctk.CTkToplevel()
+        janela_edicao.title("Editar Dados")
+        janela_edicao.geometry("500x700")
+
+        # Labels e entradas para edição dos valores
+        campos = [
+            "local", "orcamento", "pedido", "data", "situacao", "cliente", "razao",
+            "representante", "itens", "total", "vencimento", "nf", "valor_nf", "distribuidor"
+        ]
+
+        entradas = {}
+        for i, campo in enumerate(campos):
+            frame_linha = ctk.CTkFrame(janela_edicao)
+            frame_linha.pack(fill=tk.X, padx=10, pady=5)
+
+            ctk.CTkLabel(frame_linha, text=campo.capitalize(), font=("Arial", 12), width=15, anchor="w").pack(
+                side=tk.LEFT, padx=5)
+            entrada = ctk.CTkEntry(frame_linha, font=("Arial", 12))
+            entrada.pack(side=tk.RIGHT, fill=tk.X, expand=True, padx=5)
+            entrada.insert(0, valores_atuais[i])  # Preenche com o valor atual
+            entradas[campo] = entrada
+
+        # Função para salvar as edições
+        def confirmar_edicoes():
+            novos_valores = [entradas[campo].get().strip() for campo in campos]
+
+            # Atualiza os valores na Treeview
+            tree.item(item_selecionado, values=novos_valores)
+
+            # Atualiza o banco de dados
+            conexao = mysql.connector.connect(
+                host="192.168.0.101",
+                user="seu_usuario",
+                password="sua_senha",
+                database="nimalnotas"
+            )
+            cursor = conexao.cursor()
+
+            try:
+                sql_update = """
+                    UPDATE nimal
+                    SET local = %s, orcamento = %s, pedido = %s, data = %s, situacao = %s, cliente = %s, 
+                        razao = %s, representante = %s, itens = %s, total = %s, vencimento = %s, 
+                        nf = %s, valor_nf = %s, distribuidor = %s
+                    WHERE orcamento = %s
+                """
+                cursor.execute(sql_update,
+                               (*novos_valores, valores_atuais[1]))  # Usa o orçamento como identificador único
+                conexao.commit()
+                messagebox.showinfo("Sucesso", "Dados atualizados com sucesso!")
+            except Exception as e:
+                messagebox.showerror("Erro", f"Erro ao atualizar dados: {e}")
+            finally:
+                cursor.close()
+                conexao.close()
+
+            janela_edicao.destroy()
+
+        # Botão para confirmar as alterações
+        ctk.CTkButton(
+            janela_edicao, text="Confirmar", command=confirmar_edicoes,
+            fg_color="#001427", hover_color="#4361ee", width=200, height=40, font=("Impact", 14)
+        ).pack(pady=20)
+
+        # Botão para cancelar a edição
+        ctk.CTkButton(
+            janela_edicao, text="Cancelar", command=janela_edicao.destroy,
+            fg_color="#001427", hover_color="#e63946", width=200, height=40, font=("Impact", 14)
+        ).pack(pady=10)
+
+    def remover_dados():
+        global orcamento_selecionado
+
+        orcamento_selecionado = tree.item(tree.selection())["values"][1]
+
+        resposta = messagebox.askyesno("Confirmação",
+                                       f"Tem certeza que deseja remover o pedido {orcamento_selecionado} do banco de dados?")
+        if resposta:
+            try:
+                conexao = mysql.connector.connect(
+                    host="192.168.0.101",
+                    user="seu_usuario",
+                    password="sua_senha",
+                    database="nimalnotas"
+                )
+                cursor = conexao.cursor()
+
+                # Remover a linha selecionada
+                sql_delete = "DELETE FROM nimal WHERE orcamento = %s"
+                cursor.execute(sql_delete, (orcamento_selecionado,))
+
+                conexao.commit()
+                cursor.close()
+                conexao.close()
+
+                # Recarregar a visão geral
+                mostrar_visao_geral()
+            except Exception as e:
+                messagebox.showerror("Erro", f"Erro ao remover dados: {e}")
+
+    botao_editar = ctk.CTkButton(visao_frame, text="Editar", command=editar_dados, fg_color="#1C1C1C",
+                                 hover_color="#696969", width=100, height=50, font=("Impact", 16))
+    botao_editar.pack(pady=5, padx=5, side=tk.LEFT)
+
+    botao_remover = ctk.CTkButton(visao_frame, text="Remover", command=remover_dados, fg_color="#8B0000",
+                                  hover_color="#A52A2A", width=100, height=50, font=("Impact", 16))
+    botao_remover.pack(pady=5, padx=5, side=tk.LEFT)
+
+
+def extrair_informacoes_pdf(caminho_pdf):
+    try:
+        with fitz.open(caminho_pdf) as pdf:
+            conteudo = ""
+            for pagina in pdf:
+                conteudo += pagina.get_text()
+
+            linhas = conteudo.splitlines()
+
+            # Listas de padrões para buscar diferentes variações
+            padroes_venc = [r"Venc\.\s*(.*)", r"VENCIMENTO\s*(.*)"]
+            padroes_nf = [r"Nº\.\s*(.*)", r"Nº\s*(.*)", r"Número Fiscal\s*(.*)"]
+            padroes_dist = [r"IDENTIFICAÇÃO DO EMITENTE\s*(.*)", r"Distribuidor\s*(.*)", r"RECEBEMOS DE\s*(.*)"]
+            padroes_valor = [r"V\. TOTAL DA NOTA\s*(.*)", r"VALOR TOTAL DA NOTA\s*(.*)", r"V\. Total\s*(.*)"]
+            padroes_fase = ""
+
+            # Função auxiliar para tentar vários padrões até encontrar uma correspondência
+            def buscar_texto(padroes):
+                for padrao in padroes:
+                    match = re.search(padrao, conteudo)
+                    if match:
+                        return match.group(1).strip()
+                return ""
+
+            # Usar a função auxiliar para buscar cada campo
+            venc_extraido = buscar_texto(padroes_venc)
+            nf_extraido = buscar_texto(padroes_nf)
+            dist_extraido = buscar_texto(padroes_dist)
+            valor_extraido = buscar_texto(padroes_valor)
+            fase_extraido = buscar_texto(padroes_fase)
+
+            # Chamar função para editar e confirmar dados
+            editar_dados(venc_extraido, nf_extraido, dist_extraido, valor_extraido, fase_extraido)
+
+    except Exception as e:
+        messagebox.showerror("Erro", f"Erro ao processar o PDF: {e}")
+
+
+def editar_dados(venc, nf, dist, valor, fase):
+    global orcamento_selecionado
+
+    orcamento_selecionado = tree.item(tree.selection())["values"][1]
+
+
+    janela_edicao = ctk.CTkToplevel()
+    janela_edicao.geometry("500x500")
+    janela_edicao.title("Editar Dados")
+
+    # Campos para edição
+    ctk.CTkLabel(janela_edicao, text="Vencimento:").grid(row=0, column=0, padx=10, pady=5)
+    entrada_venc = ctk.CTkEntry(janela_edicao, width=300)
+    entrada_venc.insert(0, venc)
+    entrada_venc.grid(row=0, column=1, padx=10, pady=5)
+
+    ctk.CTkLabel(janela_edicao, text="Nº da NF:").grid(row=1, column=0, padx=10, pady=5)
+    entrada_nf = ctk.CTkEntry(janela_edicao, width=300)
+    entrada_nf.insert(0, nf)
+    entrada_nf.grid(row=1, column=1, padx=10, pady=5)
+
+    ctk.CTkLabel(janela_edicao, text="Distribuidor:").grid(row=2, column=0, padx=10, pady=5)
+    entrada_dist = ctk.CTkEntry(janela_edicao, width=300)
+    entrada_dist.insert(0, dist)
+    entrada_dist.grid(row=2, column=1, padx=10, pady=5)
+
+    ctk.CTkLabel(janela_edicao, text="Valor:").grid(row=3, column=0, padx=10, pady=5)
+    entrada_valor = ctk.CTkEntry(janela_edicao, width=300)
+    entrada_valor.insert(0, valor)
+    entrada_valor.grid(row=3, column=1, padx=10, pady=5)
+
+    ctk.CTkLabel(janela_edicao, text="Fase:").grid(row=4, column=0, padx=10, pady=5)
+    entrada_fase = ctk.CTkEntry(janela_edicao, width=300)
+    entrada_fase.insert(0, fase)
+    entrada_fase.grid(row=4, column=1, padx=10, pady=5)
+
+    # Botão de confirmação para salvar as alterações
+    def confirmar_edicao():
+        # Conectar ao banco de dados
+        conexao = mysql.connector.connect(
+            host="192.168.0.101",
+            user="seu_usuario",
+            password="sua_senha",
+            database="nimalnotas"
+        )
+        cursor = conexao.cursor()
+
+        # Atualizar os dados no banco de dados
+        sql_update = """
+            UPDATE nimal
+            SET vencimento = %s, nf = %s, distribuidor = %s, valor_nf = %s , situacao = %s
+            WHERE orcamento = %s
+        """
+        cursor.execute(sql_update, (
+            entrada_venc.get(), entrada_nf.get(), entrada_dist.get(), entrada_valor.get(), entrada_fase.get(),
+            orcamento_selecionado))
+
+        conexao.commit()
+        cursor.close()
+        conexao.close()
+
+        # Fechar a janela de edição
+        janela_edicao.destroy()
+
+        # Recarregar a visão geral
+        mostrar_visao_geral()
+
+    botao_confirmar = ctk.CTkButton(janela_edicao, text="Confirmar", command=confirmar_edicao, fg_color="#001427",
+                                    hover_color="#4361ee", width=100, height=40, font=("Impact", 14))
+    botao_confirmar.grid(pady=10)
+
+
+def selecionar_pdf():
+    item_selecionado = tree.selection()
+    if not item_selecionado:
+        messagebox.showwarning("Aviso", "Por favor, selecione um pedido para adicionar a nota fiscal.")
+        return
+
+    caminho_pdf = filedialog.askopenfilename(filetypes=[("Arquivos PDF", "*.pdf")])
+    if caminho_pdf:
+        extrair_informacoes_pdf(caminho_pdf)
+
+
+def restaurar_menu():
+    frame2.configure(width=600, height=480)
+    frame2.pack_propagate(False)
+    # Limpa o conteúdo anterior no menu
+    for widget in menu_frame.winfo_children():
+        widget.destroy()
+
+    # Recria os botões do menu
+
+    botao_visao_geral = ctk.CTkButton(menu_frame, text="     Visão Geral", command=mostrar_visao_geral,
+                                      fg_color="#001427", hover_color="#4361ee", width=500, height=100,
+                                      image=imagem_visao, font=("Impact", 18), corner_radius=10, anchor="w")
+    botao_visao_geral.pack(padx=50, pady=75)
+
+    botao_importar = ctk.CTkButton(menu_frame, text="   Importar Excel", command=importar_dados_excel,
+                                   fg_color="#001427",
+                                   hover_color="#4361ee", width=500, height=100,
+                                   font=("Impact", 18), corner_radius=10, anchor="w", image=imagem_excel)
+    botao_importar.pack(padx=50, pady=45)
 
 
 def importar_dados_excel():
@@ -363,6 +496,16 @@ def importar_dados_excel():
     try:
         wb = load_workbook(caminho_excel)
         sheet = wb.active
+
+        # Verificar e adicionar colunas necessárias
+        if 'vencimento' not in sheet.cell(row=1, column=sheet.max_column).value:
+            sheet.cell(row=1, column=sheet.max_column + 1, value="vencimento")
+        if 'nf' not in sheet.cell(row=1, column=sheet.max_column).value:
+            sheet.cell(row=1, column=sheet.max_column + 1, value="nf")
+        if 'valor_nf' not in sheet.cell(row=1, column=sheet.max_column).value:
+            sheet.cell(row=1, column=sheet.max_column + 1, value="valor_nf")
+        if 'distribuidor' not in sheet.cell(row=1, column=sheet.max_column).value:
+            sheet.cell(row=1, column=sheet.max_column + 1, value="distribuidor")
 
         # Conectar ao banco de dados
         conexao = mysql.connector.connect(
@@ -396,7 +539,7 @@ def importar_dados_excel():
             distribuidor = row[14]
 
             # Verificar se o orçamento já existe no banco de dados
-            cursor.execute("SELECT COUNT(*) FROM nimal WHERE orcamento = %s", (orcamento,))
+            cursor.execute("SELECT COUNT(*) FROM nimal WHERE orcamento = %s ", (orcamento,))
             resultado = cursor.fetchone()
 
             if resultado and resultado[0] > 0:
@@ -409,8 +552,8 @@ def importar_dados_excel():
                     WHERE orcamento = %s
                 """
                 cursor.execute(sql_update, (
-                local, pedido, situacao, cliente, razao, representante, itens, total, vencimento, valor_nf, nf,
-                distribuidor, data, orcamento))
+                    local, pedido, situacao, cliente, razao, representante, itens, total, vencimento, valor_nf, nf,
+                    distribuidor, data, orcamento))
             else:
                 # Inserir novo registro
                 sql_insert = """
@@ -420,8 +563,8 @@ def importar_dados_excel():
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """
                 cursor.execute(sql_insert, (
-                local, orcamento, pedido, situacao, cliente, razao, representante, itens, total, vencimento, nf,
-                valor_nf, distribuidor, data))
+                    local, orcamento, pedido, situacao, cliente, razao, representante, itens, total, vencimento, nf,
+                    valor_nf, distribuidor, data))
 
         conexao.commit()
         cursor.close()
@@ -431,20 +574,17 @@ def importar_dados_excel():
     except Exception as e:
         messagebox.showerror("Erro", f"Erro ao importar dados do Excel: {e}")
 
+
 def mostrar_frame(frame):
-    # Checa se o frame passado é o 'instrucoes_frame'
-    if frame == instrucoes_frame:
-        frame2.configure(width=1200, height=650)
+    if frame == menu_frame:
+        frame2.configure(width=600, height=480)
         frame2.pack_propagate(False)
     else:
-        # Caso não seja o instrucoes_frame, ajuste o tamanho ou comportamento padrão
         frame2.configure(width=600, height=480)  # Exemplo de tamanho padrão
         frame2.pack_propagate(True)  # Reativa o ajuste automático de tamanho
 
     frame.tkraise()
 
-
-# Inicializar a janela principal
 
 def get_screen_size():
     screen_width = janela.winfo_screenwidth()
@@ -458,97 +598,40 @@ janela.geometry(f"{screen_width}x{screen_height}")
 janela.resizable(True, True)
 janela.title("NimalResearch")
 janela.state('zoomed')
-janela.config(bg="#337ca0")
 janela.iconbitmap("nimal.ico")
-
-# Configurar a imagem de fundo
-bg = ctk.CTkImage(Image.open("bg10.jpg"), size=(1920, 1080))
+bg = ctk.CTkImage(Image.open("bg10.png"), size=(1920, 1080))
 bg_label = ctk.CTkLabel(janela, image=bg)
 bg_label.place(relwidth=1, relheight=1)
 
-# Criar o frame transparente
-frame1 = ctk.CTkFrame(janela, fg_color="#8187dc",border_width=3, border_color="#564592",width=600, height=90, corner_radius=20,background_corner_colors=["#29349e", "#336387", "#305589", "#29349e"])
-frame1.place(relx=0.5, rely=0.09, anchor='center')
 
-# Frame principal onde alternaremos as telas
-frame2 = ctk.CTkFrame(janela, fg_color="#8187dc",border_width=3, border_color="#564592", width=600, height=480,corner_radius=20,background_corner_colors=["#cdb4db", "#cdb4db", "#cdb4db", "#cdb4db"])
-frame2.place(relx=0.5, rely=0.5, anchor='center')
-
-# Configuração do frame1 (cabeçalho)
-titulo = ctk.CTkLabel(frame1, text="NIMAL RESEARCH", font=("Impact", 40))
-titulo.place(relx=0.5, rely=0.5, anchor='center')
-
-# Carregar imagens de fundo para os botões (substitua "instrucoes.png" e "pdf.png" com os caminhos reais das imagens)
 imagem_instrucoes = ctk.CTkImage(Image.open("instrucoes.png"), size=(60, 60))
-imagem_pdf = ctk.CTkImage(Image.open("pdf.png"), size=(60, 60))
+imagem_pdf = ctk.CTkImage(Image.open("pdf.png"), size=(30, 30))
 imagem_logo = ctk.CTkImage(Image.open("nimal.ico"), size=(80, 80))
 imagem_visao = ctk.CTkImage(Image.open("visao.png"), size=(60, 60))
 imagem_excel = ctk.CTkImage(Image.open("excel.png"), size=(60, 60))
-imagem_passo1= ctk.CTkImage(Image.open("passo1.png"), size=(300, 300))
-imagem_passo2= ctk.CTkImage(Image.open("passo2.png"), size=(300, 300))
-imagem_passo3= ctk.CTkImage(Image.open("passo3.png"), size=(300, 300))
-imagem_passo4= ctk.CTkImage(Image.open("passo4.png"), size=(300, 300))
 
 
-logo_label = ctk.CTkLabel(frame1, text="", image=imagem_logo, font=("Impact", 30,"bold"))
-logo_label.place(x=20, y=5)
+frame1 = ctk.CTkFrame(janela, fg_color="#33415c", width=600, height=90, corner_radius=10,background_corner_colors=["#100f3e", "#27269a", "#27269a", "#100f3e"])
+frame1.place(relx=0.5, rely=0.09, anchor='center')
 
-# Frame do menu principal
-menu_frame = ctk.CTkFrame(frame2, fg_color="#8187dc",border_width=3, border_color="#564592",corner_radius=20,background_corner_colors=["#21269b", "#2b4d7d", "#22296f", "#2c1a90"])
+frame2 = ctk.CTkFrame(janela, fg_color="#33415c", width=600, height=280, corner_radius=10)
+frame2.place(relx=0.5, rely=0.5, anchor='center')
+
+titulo = ctk.CTkLabel(frame1, text="NIMAL RESEARCH", font=("Impact", 40))
+titulo.place(relx=0.5, rely=0.5, anchor='center')
+
+menu_frame = ctk.CTkFrame(frame2, fg_color="#33415c", border_color="#33415c", border_width=3, corner_radius=10,background_corner_colors=["#100f3e", "#27269a", "black", "#100f3e"])
 menu_frame.place(relwidth=1, relheight=1)
 
-# Frame das instruções
-instrucoes_frame = ctk.CTkFrame(frame2, fg_color="transparent",corner_radius=20,)
-instrucoes_frame.place(relwidth=1, relheight=1)
+logo_label = ctk.CTkLabel(frame1, text="", image=imagem_logo, font=("Impact", 30, "bold"))
+logo_label.place(x=20, y=5)
 
-# Configuração do menu principal
-botao_instrucoes = ctk.CTkButton(menu_frame, text="   Instruções", command=lambda: mostrar_frame(instrucoes_frame),
-                                 fg_color="#001427", hover_color="#4361ee", width=500, height=80,
-                                 image=imagem_instrucoes,compound="left", font=("Impact", 18), corner_radius=10,anchor="w")
-botao_instrucoes.pack(padx=10, pady=20)
+botao_visao_geral = ctk.CTkButton(menu_frame, text="     Visão Geral", command=mostrar_visao_geral,fg_color="#001427", hover_color="#4361ee", width=500, height=100,image=imagem_visao, font=("Impact", 18), corner_radius=10, anchor="w")
+botao_visao_geral.pack(padx=50, pady=75)
 
-botao_selecionar_pdf = ctk.CTkButton(menu_frame, text="    Selecionar PDF", command=selecionar_pdf,
-                                     fg_color="#001427", hover_color="#4361ee", width=500, height=80,
-                                     image=imagem_pdf, font=("Impact", 18), corner_radius=10,anchor="w")
-botao_selecionar_pdf.pack(padx=50, pady=20)
-
-botao_visao_geral = ctk.CTkButton(menu_frame, text="     Visão Geral", command=mostrar_visao_geral,
-                                     fg_color="#001427", hover_color="#4361ee", width=500, height=80,
-                                     image=imagem_visao, font=("Impact", 18), corner_radius=10,anchor="w")
-botao_visao_geral.pack(padx=50, pady=20)
-
-botao_importar = ctk.CTkButton(menu_frame, text="   Importar Excel",command=importar_dados_excel,fg_color="#001427", hover_color="#4361ee", width=500, height=80,
-                                      font=("Impact", 18), corner_radius=10, anchor="w",image=imagem_excel)
-botao_importar.pack(padx=50, pady=20)
-
-
-# Configuração da tela de instruções
-titulo_instrucoes = ctk.CTkLabel(instrucoes_frame, text="Instruções",font=("Impact", 30))
-titulo_instrucoes.place(relx=0.5, y=15, anchor='center')
-
-texto_instrucoes = ctk.CTkLabel(instrucoes_frame, text="Bem-vindo ao Nimal Research! Aqui você pode adicionar automaticamente as informações de notas fiscais à sua planilha no Excel. Para isso, basta seguir estes passos, mas antes, precisamos salvar o arquivo baixado do eloca novamente, para isso basta abrir o arquivo da planilha excel e ir em -> Arquivo -> Salvar Como e escolher um nome para o arquivo.\n 1. Clique em 'Selecionar PDF' e escolha o arquivo da nota fiscal (Lembre-se de que ele precisa estar no formato PDF). Quando o programa ler o arquivo, as informações extraídas aparecerão para o usuário.\n 2. Selecione o arquivo da planilha Excel para adicionar as informações extraídas. \n 3. Na aba de seleção do valor do orçamento, insira o número correspondente à ordem de serviço escolhida. Esse número é indicado na coluna 'Orçamento' e segue o formato padrão: '00-0'. ",
-                                font=("Arial", 14,"bold"), wraplength=850, justify="left")
-texto_instrucoes.place(relx=0.5, y=120, anchor='center')
-
-
-tutorial1 = ctk.CTkLabel(instrucoes_frame, text="selecionar arquivo da nota fiscal",image=imagem_passo1,font=("Impact", 15))
-tutorial1.place(x=150, y=400, anchor='center')
-
-tutorial2 = ctk.CTkLabel(instrucoes_frame, text="confirmar os dados",image=imagem_passo2, font=("Impact", 15))
-tutorial2.place(x=450, y=400, anchor='center')
-
-tutorial3 = ctk.CTkLabel(instrucoes_frame, text="selecionar arquivo excel",image=imagem_passo3, font=("Impact", 15))
-tutorial3.place(x=750, y=400, anchor='center')
-
-tutorial4 = ctk.CTkLabel(instrucoes_frame, text="escolher o número do orçamento",image=imagem_passo4, font=("Impact", 15))
-tutorial4.place(x=1050, y=400, anchor='center')
-
-botao_voltar = ctk.CTkButton(instrucoes_frame, text="Voltar", command=lambda: mostrar_frame(menu_frame),
-                             fg_color="#001427", hover_color="#4361ee", width=200, height=50, font=("Impact", 16))
-botao_voltar.place(relx=0.5, rely=0.9, anchor='center')
+botao_importar = ctk.CTkButton(menu_frame, text="   Importar Excel", command=importar_dados_excel, fg_color="#001427",hover_color="#4361ee", width=500, height=100,font=("Impact", 18), corner_radius=10, anchor="w", image=imagem_excel)
+botao_importar.pack(padx=50, pady=45)
 
 mostrar_frame(menu_frame)
 
 janela.mainloop()
-
-
