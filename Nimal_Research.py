@@ -12,7 +12,7 @@ from tkinter import messagebox
 from tkinter import filedialog
 
 conexao = mysql.connector.connect(
-    host="192.168.0.101",
+    host="",
     user="seu_usuario",
     password="sua_senha",
     database="nimalnotas"
@@ -52,7 +52,7 @@ def mostrar_visao_geral():
 
         # Conecta ao banco de dados
         conexao = mysql.connector.connect(
-            host="192.168.0.101",  # ou o IP do servidor MySQL
+            host="",  # ou o IP do servidor MySQL
             user="seu_usuario",  # substitua pelo seu usuário MySQL
             password="sua_senha",  # substitua pela senha do seu usuário
             database="nimalnotas"
@@ -267,7 +267,7 @@ def mostrar_visao_geral():
 
             # Atualiza o banco de dados
             conexao = mysql.connector.connect(
-                host="192.168.0.101",
+                host="",
                 user="seu_usuario",
                 password="sua_senha",
                 database="nimalnotas"
@@ -316,7 +316,7 @@ def mostrar_visao_geral():
         if resposta:
             try:
                 conexao = mysql.connector.connect(
-                    host="192.168.0.101",
+                    host="",
                     user="seu_usuario",
                     password="sua_senha",
                     database="nimalnotas"
@@ -423,7 +423,7 @@ def editar_dados(venc, nf, dist, valor, fase):
     def confirmar_edicao():
         # Conectar ao banco de dados
         conexao = mysql.connector.connect(
-            host="192.168.0.101",
+            host="",
             user="seu_usuario",
             password="sua_senha",
             database="nimalnotas"
@@ -509,7 +509,7 @@ def importar_dados_excel():
 
         # Conectar ao banco de dados
         conexao = mysql.connector.connect(
-            host="192.168.0.101",  # ou o IP do servidor MySQL
+            host="",  # ou o IP do servidor MySQL
             user="seu_usuario",  # substitua pelo seu usuário MySQL
             password="sua_senha",  # substitua pela senha do seu usuário
             database="nimalnotas"
