@@ -1,4 +1,4 @@
-.Nimal Research - 
+Nimal Research - 
 O Nimal Research é um software desenvolvido para facilitar a gestão de dados financeiros e operacionais, permitindo a extração, manipulação e organização de informações de forma ágil e intuitiva. Com uma interface simples, moderna e fácil de usar, ele proporciona eficiência para empresas que lidam com notas fiscais, bancos de dados e planilhas.
 
 - Principais Funcionalidades:
