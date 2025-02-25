@@ -1,11 +1,77 @@
 import os
+import sys
+import tkinter as tk
+from PIL import Image, ImageTk
+def get_caminho_imagem(nome_imagem):
+    if getattr(sys, 'frozen', False):  # Verifica se está rodando como executável
+        caminho_imagem = os.path.join(sys._MEIPASS, 'imagens', nome_imagem)  # Diretório temporário do PyInstaller
+    else:
+        caminho_imagem = os.path.join(os.path.dirname(__file__), 'imagens', nome_imagem)  # Caminho normal durante o desenvolvimento
+    return caminho_imagem
+def carregar_imagens():
+    imagens = {}
+    # Lista de imagens que você precisa carregar
+    arquivos_imagens = [
+        'barra.gif', 'icons8-editar-50.png', 'icons8-apagar-para-sempre-24.png',
+        'icons8-adicionar-50.png', 'icons8-lista-de-arquivo-de-peças-30.png',
+        'icons8-pesquisar-64.png', 'icons8-lista-64.png', 'logistics_icon.png',
+        'delivered_icon.png', 'shipping_icon.png', 'nimall2.png','Cancel Subscription.png',
+        'Check Dollar.png','Product_Documents.png','icons8-adicionar-arquivo-32.png','icons8-importar-30.png',
+        'icons8-duplicata-50.png'
+    ]
+
+    # Carregar as imagens
+    for arquivo in arquivos_imagens:
+        caminho_imagem = get_caminho_imagem(arquivo)
+        imagens[arquivo] = Image.open(caminho_imagem)
+
+    return imagens
+def splash_screen():
+    global splash, gif, label
+
+    # Criar a Splash Screen rapidamente
+    splash = tk.Tk()
+    splash.geometry("300x70")
+    splash.title("Carregando...")
+    splash.overrideredirect(True)  # Remove a borda da janela
+
+    # Centralizar na tela
+    screen_width = splash.winfo_screenwidth()
+    screen_height = splash.winfo_screenheight()
+    x_position = (screen_width - 300) // 2
+    y_position = (screen_height - 70) // 2
+    splash.geometry(f"+{x_position}+{y_position}")
+
+    # Adicionar um Label de carregamento (GIF)
+    gif_path = get_caminho_imagem("barra2.gif")  # Usando o caminho dinâmico
+    gif = Image.open(gif_path)  # Abre o GIF
+
+    # Criar um Label para exibir o GIF
+    label = tk.Label(splash, bg="#d9d9d9")  # Fundo igual ao da splash
+    label.pack(expand=True)
+
+    def atualizar_gif(frame=0):
+        try:
+            gif.seek(frame)  # Seleciona o frame atual
+            frame_atual = ImageTk.PhotoImage(gif.copy())  # Cria uma cópia para evitar erros
+            label.config(image=frame_atual)
+            label.image = frame_atual  # Manter referência para evitar coleta de lixo
+            # Agendar o próximo frame
+            splash.after(100, atualizar_gif, (frame + 1) % gif.n_frames)
+        except Exception as e:
+            print("Erro ao carregar o GIF:", e)
+
+    atualizar_gif()
+
+    # Fechar a janela após 7 segundos
+    splash.after(7000, splash.destroy)
+    splash.mainloop()
+splash_screen()
 import re
 import fitz
 import mysql.connector
 from customtkinter import CTkImage, CTkLabel
-from PIL import Image
 import pandas as pd
-import tkinter as tk
 from tkinter import ttk
 import customtkinter as ctk
 from tkinter import messagebox
@@ -19,8 +85,8 @@ conexao = mysql.connector.connect(
     password="sua_senha",
     database="nimalnotas"
 )
-
 cursor = conexao.cursor()
+
 def mostrar_visao_geral():
         global tree, frame2
 
@@ -46,8 +112,8 @@ def mostrar_visao_geral():
 
             # SQL básico com filtro opcional
             sql_query = """
-                SELECT local, orcamento,pedido,data, situacao, cliente, razao, representante, itens,total, vencimento, nf, valor_nf, distribuidor 
-                FROM nimal
+                SELECT local, orcamento,pedido,data, situacao, cliente, razao, representante, itens,total, vencimento, nf, valor_nf, distribuidor,porcentagem,numero 
+                FROM nimal2
             """
             if valor:  # Se um valor for passado, filtra pela data
                 sql_query += f" WHERE {coluna} LIKE %s "
@@ -86,7 +152,7 @@ def mostrar_visao_geral():
                 cursor = conexao.cursor()
 
                 # Adicionando aspas ao redor dos nomes das colunas para evitar erro de sintaxe SQL
-                sql_query = f"SELECT local, orcamento,pedido,data, situacao, cliente, razao, representante, itens,total, vencimento, nf, valor_nf, distribuidor FROM nimal WHERE `{coluna_real}` LIKE %s"
+                sql_query = f"SELECT local, orcamento,pedido,data, situacao, cliente, razao, representante, itens,total, vencimento, nf, valor_nf, distribuidor FROM nimal2 WHERE `{coluna_real}` LIKE %s"
                 cursor.execute(sql_query, (valor_filtrado,))
                 resultados = cursor.fetchall()
 
@@ -121,7 +187,7 @@ def mostrar_visao_geral():
 
         # Criando a tabela com Treeview
         colunas = ("Local", "OGE", "Pedido", "Data", "Fase", "Cliente", "Razao", "Rep",
-                   "Itens", "Total", "Venc", "NF", "Valor NF", "DTVM")
+                   "Itens", "Total", "Venc","NF" ,"ValorNF", "DTVM","%","Comissão")
 
         # Criando o Treeview
         tree = ttk.Treeview(visao_frame, columns=colunas, show="headings")
@@ -135,6 +201,8 @@ def mostrar_visao_geral():
             tree.heading(coluna, text=coluna)
             tree.column(coluna, width=25)
             tree.column("Itens", width=2, anchor="center")
+            tree.column("Pedido", width=2, anchor="center")
+            tree.column("%", width=4, anchor="center")
             tree.column("Cliente", width=18, anchor="center")
             tree.column("Fase", width=15, anchor="center")
             tree.column("Local", width=19, anchor="center")
@@ -170,7 +238,7 @@ def mostrar_visao_geral():
                 novo_orcamento = f"{base_orcamento}-{numero_incremento}"
 
                 cursor.execute(
-                    "SELECT local, orcamento,pedido,data, situacao, cliente, razao, representante, itens,total, vencimento, nf, valor_nf, distribuidor FROM nimal WHERE orcamento = %s",
+                    "SELECT local, orcamento,pedido,data, situacao, cliente, razao, representante, itens,total, vencimento, nf, valor_nf, distribuidor FROM nimal2 WHERE orcamento = %s",
                     (orcamento_selecionado,))
                 linha_selecionada = cursor.fetchone()
 
@@ -198,15 +266,15 @@ def mostrar_visao_geral():
 
                 # Inserir a nova linha na tabela no banco de dados
                 cursor.execute(
-                    "INSERT INTO nimal (local,orcamento, pedido, data, situacao, cliente, razao, representante, itens, total, vencimento, nf, valor_nf, distribuidor) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    "INSERT INTO nimal2 (local,orcamento, pedido, data, situacao, cliente, razao, representante, itens, total, vencimento, nf, valor_nf, distribuidor) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
                     dados_copia
                 )
                 conexao.commit()
                 carregar_dados()
-                atualizar_contagem()
-
             except Exception as e:
                 messagebox.showerror("Erro", "Por favor,selecione um pedido valido para duplicar.Certifique-se que o pedido selecionado não apresenta uma duplicata.")
+            finally:
+                atualizar_contagem()
 
         def editar_dados():
             # Verifica se há uma linha selecionada
@@ -220,9 +288,8 @@ def mostrar_visao_geral():
 
             janela_edicao = ctk.CTkToplevel()
             janela_edicao.title("Teste")
-            janela_edicao.geometry("600x800")
+            janela_edicao.geometry("600x700")
             janela_edicao.resizable(width=False, height=False)
-
 
             # frames
             campos = [
@@ -233,26 +300,24 @@ def mostrar_visao_geral():
             entradas = {}
 
             frameA = ctk.CTkFrame(janela_edicao, fg_color="#EEEEEE", width=700, height=700, corner_radius=10)
-            frameA.place(relx=0.5, rely=0.43, anchor='center')
+            frameA.place(relx=0.5, rely=0.45, anchor='center')
 
             frameC = ctk.CTkFrame(frameA, width=700, height=300, corner_radius=10, fg_color="#5946b4")
-            frameC.place(relx=0.5, rely=0.1, anchor='center')
+            frameC.place(relx=0.5, rely=0.15, anchor='center')
 
             frameB = ctk.CTkFrame(frameA, fg_color="#EEEEEE", width=600, height=900, corner_radius=10)
             frameB.place(relx=0.5, rely=0.8, anchor='center')
 
             # labels e entries
 
-            logo_img_data = Image.open("nimall2.png")
-            logo_img = CTkImage(dark_image=logo_img_data, light_image=logo_img_data, size=(90, 90))
-            img = ctk.CTkLabel(master=frameC, text="", image=logo_img)
+            img = ctk.CTkLabel(master=frameC, text="", image=imgb9)
             img.place(relx=0.8, rely=0.45, anchor='center')
 
             titulo = ctk.CTkLabel(frameC, text="Editar Pedido", font=("Arial Black", 24), text_color="white")
-            titulo.place(relx=0.1, rely=0.4, anchor='w')
+            titulo.place(relx=0.1, rely=0.37, anchor='w')
 
             idlabel = ctk.CTkLabel(frameC, text=f"OGE: {valores_atuais[1]}", font=("Arial Black", 18), text_color="white")
-            idlabel.place(relx=0.1, rely=0.5, anchor='w')
+            idlabel.place(relx=0.1, rely=0.47, anchor='w')
 
 
             CTkLabel(frameA, text="Local", font=("Arial", 12), text_color="black").place(relx=0.12, rely=0.21,
@@ -378,7 +443,7 @@ def mostrar_visao_geral():
 
                 try:
                     sql_update = """
-                        UPDATE nimal
+                        UPDATE nimal2
                         SET local = %s, orcamento = %s, pedido = %s, data = %s, situacao = %s, cliente = %s, 
                             razao = %s, representante = %s, itens = %s, total = %s, vencimento = %s, 
                             nf = %s, valor_nf = %s, distribuidor = %s
@@ -402,13 +467,13 @@ def mostrar_visao_geral():
             ctk.CTkButton(
                 janela_edicao, text="Confirmar", command=confirmar_edicoes,
                 fg_color="#5946b4", hover_color="#4b3b96", width=200, height=40, font=("Arial", 14)
-            ).place(relx=0.3, rely=0.95, anchor=tk.CENTER)
+            ).place(relx=0.3, rely=0.89, anchor=tk.CENTER)
 
             # Botão para cancelar a edição
             ctk.CTkButton(
                 janela_edicao, text="Cancelar", command=janela_edicao.destroy,
                 fg_color="#5946b4", hover_color="#4b3b96", width=200, height=40, font=("Arial", 14)
-            ).place(relx=0.7, rely=0.95, anchor=tk.CENTER)
+            ).place(relx=0.7, rely=0.89, anchor=tk.CENTER)
 
         def remover_dados():
             global orcamento_selecionado
@@ -428,7 +493,7 @@ def mostrar_visao_geral():
                     cursor = conexao.cursor()
 
                     # Remover a linha selecionada
-                    sql_delete = "DELETE FROM nimal WHERE orcamento = %s"
+                    sql_delete = "DELETE FROM nimal2 WHERE orcamento = %s"
                     cursor.execute(sql_delete, (orcamento_selecionado,))
 
                     conexao.commit()
@@ -452,7 +517,7 @@ def mostrar_visao_geral():
             cursor = conexao.cursor()
 
             # Executando o comando SQL para contar os elementos
-            query = "SELECT COUNT(*) FROM nimal"  # Substitua 'projetos' pelo nome da sua tabela
+            query = "SELECT COUNT(*) FROM nimal2"  # Substitua 'projetos' pelo nome da sua tabela
             cursor.execute(query)
             resultado = cursor.fetchone()[0]
 
@@ -474,7 +539,7 @@ def mostrar_visao_geral():
             cursor = conexao.cursor()
 
             # Executando o comando SQL para contar os elementos com "Status = Concluído"
-            query = "SELECT COUNT(*) FROM nimal WHERE situacao = 'Faturado'"  # Ajuste 'projetos' e 'status' se necessário
+            query = "SELECT COUNT(*) FROM nimal2 WHERE situacao = 'Faturado'"  # Ajuste 'projetos' e 'status' se necessário
             cursor.execute(query)
             resultado = cursor.fetchone()[0]
 
@@ -496,7 +561,7 @@ def mostrar_visao_geral():
             cursor = conexao.cursor()
 
             # Executando o comando SQL para contar os elementos com "Status = Em Aberto"
-            query = "SELECT COUNT(*) FROM nimal WHERE vencimento IS NULL"  # Ajuste 'projetos' e 'status' se necessário
+            query = "SELECT COUNT(*) FROM nimal2 WHERE vencimento IS NULL OR vencimento = 'None';"  # Ajuste 'projetos' e 'status' se necessário
             cursor.execute(query)
             resultado = cursor.fetchone()[0]
 
@@ -517,19 +582,19 @@ def mostrar_visao_geral():
                 )
                 cursor = conexao.cursor()
 
-                cursor.execute("SELECT COUNT(*) FROM projetos WHERE status = 'Concluído'")
+                cursor.execute("SELECT COUNT(*) FROM nimal2 WHERE situacao = 'Faturado'")
                 total_concluidos = cursor.fetchone()[0]
 
-                cursor.execute("SELECT COUNT(*) FROM projetos WHERE status = 'Em Aberto'")
+                cursor.execute("SELECT COUNT(*) FROM nimal2 WHERE nf IS NULL")
                 total_em_aberto = cursor.fetchone()[0]
 
-                cursor.execute("SELECT COUNT(*) FROM projetos;")
+                cursor.execute("SELECT COUNT(*) FROM nimal2;")
                 total_elementos = cursor.fetchone()[0]
 
 
                 label1.configure(text=f"Total: {total_elementos}")
-                label2.configure(text=f"Concluídos: {total_concluidos}")
-                label3.configure(text=f"Em Aberto: {total_em_aberto}")
+                label2.configure(text=f"Faturado: {total_concluidos}")
+                label3.configure(text=f"Sem Nota: {total_em_aberto}")
 
             except mysql.connector.Error as e:
                 print(f"Erro ao atualizar contagem: {e}")
@@ -558,9 +623,8 @@ def mostrar_visao_geral():
             frameB = ctk.CTkFrame(frameA, fg_color="#EEEEEE", width=600, height=900, corner_radius=10)
             frameB.place(relx=0.5, rely=0.8, anchor='center')
 
-            logo_img_data = Image.open("nimall2.png")
-            logo_img = CTkImage(dark_image=logo_img_data, light_image=logo_img_data, size=(90, 90))
-            img = ctk.CTkLabel(master=frameC, text="", image=logo_img)
+
+            img = ctk.CTkLabel(master=frameC, text="", image=imgb9)
             img.place(relx=0.8, rely=0.45, anchor='center')
 
             titulo = ctk.CTkLabel(frameC, text="Editar Pedido", font=("Arial Black", 24), text_color="white")
@@ -597,8 +661,29 @@ def mostrar_visao_geral():
                                          font=("Arial", 12), width=250, height=30)
             entrada_fase.place(relx=0.3, rely=0.45, anchor='center')
 
-            # Botão de confirmação para salvar as alterações
+            ctk.CTkLabel(frameA, text="Valor Bruto Comissão (R$):").place(relx=0.52, rely=0.41, anchor='w')
+            entrada_porcent = ctk.CTkEntry(frameA, border_color="#5946b4",
+                                           font=("Arial", 12), width=250, height=30)
+            entrada_porcent.place(relx=0.7, rely=0.45, anchor='center')
+
             def confirmar_edicao():
+                def limpar_valor(valor_str):
+                    valor_str = valor_str.replace('.', '')  # Remove o separador de milhar (ponto)
+                    valor_str = valor_str.replace(',', '.')  # Substitui vírgula por ponto
+                    try:
+                        return float(valor_str)
+                    except ValueError:
+                        raise ValueError("Valor inválido para conversão")
+
+                # Calcular o valor de 'numero' como o valor de entrada multiplicado pela porcentagem
+                try:
+                    valor = limpar_valor(entrada_valor.get())# Obtém o valor da entrada e limpa
+                    valor_bruto = limpar_valor(entrada_porcent.get())  # Obtém o valor da porcentagem
+                    porcentagem =  (valor_bruto / valor) * 100
+                except ValueError as e:
+                    print(f"Erro ao calcular o número: {e}")
+                    return
+
                 # Conectar ao banco de dados
                 conexao = mysql.connector.connect(
                     host="192.168.0.101",
@@ -610,23 +695,22 @@ def mostrar_visao_geral():
 
                 # Atualizar os dados no banco de dados
                 sql_update = """
-                    UPDATE nimal
-                    SET vencimento = %s, nf = %s, distribuidor = %s, valor_nf = %s , situacao = %s
+                    UPDATE nimal2
+                    SET vencimento = %s, nf = %s, distribuidor = %s, valor_nf = %s, situacao = %s, porcentagem = %s, numero = %s
                     WHERE orcamento = %s
                 """
                 cursor.execute(sql_update, (
                     entrada_venc.get(), entrada_nf.get(), entrada_dist.get(), entrada_valor.get(), entrada_fase.get(),
-                    orcamento_selecionado))
+                    porcentagem, entrada_porcent.get(), orcamento_selecionado))
 
                 conexao.commit()
                 cursor.close()
                 conexao.close()
                 carregar_dados()
                 atualizar_contagem()
+
                 # Fechar a janela de edição
                 janela_edicao.destroy()
-
-                # Recarregar a visão geral
 
             ctk.CTkButton(
                 janela_edicao, text="Confirmar", command=confirmar_edicao,
@@ -680,21 +764,14 @@ def mostrar_visao_geral():
             if caminho_pdf:
                 extrair_informacoes_pdf(caminho_pdf)
 
-        logo_img_data = Image.open("nimall2.png")
-        logo_img = CTkImage(dark_image=logo_img_data, light_image=logo_img_data, size=(130,130))
-        CTkLabel(master=frame1, text="", image=logo_img).pack(pady=(100, 120), anchor="center")
 
-        img1 = Image.open("Product_Documents.png")
-        img1 = CTkImage(dark_image=img1, light_image=img1, size=(45,45))
-        CTkLabel(master=frameA, text="", image=img1).place(x=20,rely=0.2)
+        CTkLabel(master=frame1, text="", image=imgb9).pack(pady=(80, 100), anchor="center")
 
-        img1 = Image.open("Check Dollar.png")
-        img1 = CTkImage(dark_image=img1, light_image=img1, size=(45, 45))
-        CTkLabel(master=frameB, text="", image=img1).place(x=20, rely=0.2)
+        CTkLabel(master=frameA, text="", image=imgb10).place(x=20,rely=0.2)
 
-        img1 = Image.open("Cancel Subscription.png")
-        img1 = CTkImage(dark_image=img1, light_image=img1, size=(45, 45))
-        CTkLabel(master=frameC, text="", image=img1).place(x=20, rely=0.2)
+        CTkLabel(master=frameB, text="", image=imgb11).place(x=20, rely=0.2)
+
+        CTkLabel(master=frameC, text="", image=imgb12).place(x=20, rely=0.2)
 
         total_elementos = contar_elementos()
         total_concluidos = contar_concluidos()
@@ -720,32 +797,32 @@ def mostrar_visao_geral():
 
         botao_editar = ctk.CTkButton(frame1, text="Editar", command=editar_dados, fg_color="#5946b4", hover_color="#4b3b96",
                                      width=200, height=50, font=("Arial Bold", 16),image=imgb1,anchor="w")
-        botao_editar.pack(pady=5, padx=5)
+        botao_editar.pack(pady=3, padx=5)
 
 
         botao_remover = ctk.CTkButton(frame1, text="Remover", command=remover_dados, fg_color="#5946b4",
                                       hover_color="#4b3b96", width=200, height=50, font=("Arial Bold", 16), image=imgb2,anchor="w")
-        botao_remover.pack(pady=5, padx=5)
+        botao_remover.pack(pady=3, padx=5)
 
 
         botao_exportar = ctk.CTkButton(frame1, text="Gerar Relatório", command=exportar_para_excel, fg_color="#5946b4",
                                        hover_color="#4b3b96", width=200, height=50, font=("Arial Bold", 16),image=imgb4,anchor="w")
-        botao_exportar.pack(pady=5, padx=(20,20))
+        botao_exportar.pack(pady=3, padx=(20,20))
 
         botao_duplicar = ctk.CTkButton(frame1, text="Duplicar", command=duplicar_orcamento, fg_color="#5946b4",
                                        hover_color="#4b3b96", width=200, height=50, font=("Arial Bold", 16),
                                        image=imgb8, anchor="w")
-        botao_duplicar.pack(pady=5, padx=(20, 20))
+        botao_duplicar.pack(pady=3, padx=(20, 20))
 
         botao_extrair = ctk.CTkButton(frame1, text="Selecionar Nota", command=selecionar_pdf, fg_color="#5946b4",
                                        hover_color="#4b3b96", width=200, height=50, font=("Arial Bold", 16),
                                        image=imgb6, anchor="w")
-        botao_extrair.pack(pady=5, padx=(20, 20))
+        botao_extrair.pack(pady=3, padx=(20, 20))
 
         botao_importar = ctk.CTkButton(frame1, text="Importar Dados", command=importar_dados_excel, fg_color="#5946b4",
                                       hover_color="#4b3b96", width=200, height=50, font=("Arial Bold", 16),
                                       image=imgb7, anchor="w")
-        botao_importar.pack(pady=5, padx=(20, 20))
+        botao_importar.pack(pady=3, padx=(20, 20))
 
 
         botao_filtrar = ctk.CTkButton(frameD, text="Pesquisar", command=aplicar_filtro, fg_color="#5946b4",
@@ -837,13 +914,13 @@ def importar_dados_excel():
             distribuidor = row[14]
 
             # Verificar se o orçamento já existe no banco de dados
-            cursor.execute("SELECT COUNT(*) FROM nimal WHERE orcamento = %s ", (orcamento,))
+            cursor.execute("SELECT COUNT(*) FROM nimal2 WHERE orcamento = %s ", (orcamento,))
             resultado = cursor.fetchone()
 
             if resultado and resultado[0] > 0:
                 # Atualizar se o orçamento já existe
                 sql_update = """
-                    UPDATE nimal
+                    UPDATE nimal2
                     SET local = %s, pedido = %s, situacao = %s, cliente = %s, razao = %s,
                         representante = %s, itens = %s, total = %s, vencimento = %s,
                         valor_nf = %s, nf = %s, distribuidor = %s, data = %s
@@ -855,7 +932,7 @@ def importar_dados_excel():
             else:
                 # Inserir novo registro
                 sql_insert = """
-                    INSERT INTO nimal (
+                    INSERT INTO nimal2 (
                         local, orcamento, pedido, situacao, cliente, razao, representante,
                         itens, total, vencimento, nf, valor_nf, distribuidor, data
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -886,7 +963,6 @@ def centralizar_janela(largura, altura):
 
     return f"{largura}x{altura}+{pos_x}+{pos_y}"
 
-
 janela = ctk.CTk()
 screen_width, screen_height = get_screen_size()
 dimensoes = centralizar_janela(screen_width, screen_height)
@@ -894,19 +970,20 @@ janela.geometry(dimensoes)
 janela.resizable(True, True)
 janela.title("NimalResearch")
 janela.state('zoomed')
-janela.iconbitmap("nimal.ico")
 ctk.set_appearance_mode("light")
 
-imagem_pdf = ctk.CTkImage(Image.open("pdf.png"), size=(30, 30))
-imagem_logo = ctk.CTkImage(Image.open("nimal.ico"), size=(80, 80))
-imgb1 = ctk.CTkImage(Image.open("icons8-editar-50.png"), size=(30, 30))
-imgb2 = ctk.CTkImage(Image.open("icons8-apagar-para-sempre-24.png"), size=(30, 30))
-imgb3 = ctk.CTkImage(Image.open("icons8-adicionar-50.png"), size=(30, 30))
-imgb4 = ctk.CTkImage(Image.open("icons8-lista-de-arquivo-de-peças-30.png"), size=(30, 30))
-imgb5 = ctk.CTkImage(Image.open("icons8-pesquisar-64.png"), size=(20, 20))
-imgb6 = ctk.CTkImage(Image.open("icons8-duplicata-50.png"), size=(30, 30))
-imgb7 = ctk.CTkImage(Image.open("icons8-importar-30.png"), size=(30, 30))
-imgb8 = ctk.CTkImage(Image.open("icons8-adicionar-arquivo-32.png"), size=(30, 30))
+imgb1 = ctk.CTkImage(Image.open(get_caminho_imagem("icons8-editar-50.png")), size=(30, 30))
+imgb2 = ctk.CTkImage(Image.open(get_caminho_imagem("icons8-apagar-para-sempre-24.png")), size=(30, 30))
+imgb3 = ctk.CTkImage(Image.open(get_caminho_imagem("icons8-adicionar-50.png")), size=(30, 30))
+imgb4 = ctk.CTkImage(Image.open(get_caminho_imagem("icons8-lista-de-arquivo-de-peças-30.png")), size=(30, 30))
+imgb5 = ctk.CTkImage(Image.open(get_caminho_imagem("icons8-pesquisar-64.png")), size=(20, 20))
+imgb6 = ctk.CTkImage(Image.open(get_caminho_imagem("icons8-duplicata-50.png")), size=(30, 30))
+imgb7 = ctk.CTkImage(Image.open(get_caminho_imagem("icons8-importar-30.png")), size=(30, 30))
+imgb8 = ctk.CTkImage(Image.open(get_caminho_imagem("icons8-adicionar-arquivo-32.png")), size=(30, 30))
+imgb9 = ctk.CTkImage(Image.open(get_caminho_imagem("nimall2.png")), size=(150, 150))
+imgb10 = ctk.CTkImage(Image.open(get_caminho_imagem("Product_Documents.png")), size=(45, 45))
+imgb11 = ctk.CTkImage(Image.open(get_caminho_imagem("Check Dollar.png")), size=(45, 45))
+imgb12 = ctk.CTkImage(Image.open(get_caminho_imagem("Cancel Subscription.png")), size=(45, 45))
 
 frame1 = ctk.CTkFrame(janela, fg_color="#5946b4", width=100, height=650,corner_radius=0)
 frame1.pack(fill="y", anchor="w", side="left")
